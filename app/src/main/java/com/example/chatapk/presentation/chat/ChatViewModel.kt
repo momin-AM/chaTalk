@@ -191,6 +191,12 @@ class ChatViewModel(
         }
     }
 
+    fun deleteMessage(messageId: String) {
+        viewModelScope.launch {
+            chatRepository.deleteMessage(chatId, messageId)
+        }
+    }
+
     override fun onCleared() {
         val uid = uiState.value.currentUserId
         if (uid.isNotBlank()) {

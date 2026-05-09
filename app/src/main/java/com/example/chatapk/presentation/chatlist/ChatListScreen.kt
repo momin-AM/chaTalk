@@ -65,11 +65,12 @@ import com.example.chatapk.domain.model.UserProfile
 import com.example.chatapk.presentation.common.UserAvatar
 import com.example.chatapk.presentation.common.formatDateOrTime
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun ChatListScreen(
     viewModel: ChatListViewModel,
-    onOpenChat: (chatId: String, receiverId: String) -> Unit
+    onOpenChat: (chatId: String, receiverId: String) -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
@@ -194,7 +195,7 @@ fun ChatListScreen(
                                 DropdownMenuItem(
                                     text = { Text("Settings") },
                                     onClick = {
-                                        // TODO: Navigate to settings
+                                        onOpenSettings()
                                         showMenu = false
                                     }
                                 )

@@ -338,6 +338,15 @@ class FirebaseChatRepository(
         }
     }
 
+    override suspend fun deleteMessage(chatId: String, messageId: String): Result<Unit> = runCatching {
+        chatDao.deleteMessage(messageId)
+        chats.document(chatId)
+            .collection("messages")
+            .document(messageId)
+            .delete()
+            .await()
+    }
+
     override suspend fun deleteChat(chatId: String): Result<Unit> = runCatching {
         chatDao.deleteMessages(chatId)
         val chatRef = chats.document(chatId)

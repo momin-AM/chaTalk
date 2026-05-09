@@ -13,6 +13,7 @@ interface ChatRepository {
     suspend fun markChatSeen(chatId: String, currentUserId: String)
     suspend fun setTyping(chatId: String, currentUserId: String, isTyping: Boolean)
     suspend fun reactToMessage(chatId: String, messageId: String, currentUserId: String, emoji: String?)
+    suspend fun deleteMessage(chatId: String, messageId: String): Result<Unit>
     suspend fun deleteChat(chatId: String): Result<Unit>
     suspend fun clearLocalData()
 }

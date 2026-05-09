@@ -17,11 +17,14 @@ import com.example.chatapk.presentation.chat.ChatScreen
 import com.example.chatapk.presentation.chat.ChatViewModel
 import com.example.chatapk.presentation.chatlist.ChatListScreen
 import com.example.chatapk.presentation.chatlist.ChatListViewModel
+import com.example.chatapk.presentation.settings.SettingsScreen
+import com.example.chatapk.presentation.settings.SettingsViewModel
 
 private object Routes {
     const val AUTH = "auth"
     const val CHATS = "chats"
     const val CHAT = "chat/{chatId}/{receiverId}"
+    const val SETTINGS = "settings"
 
     fun chat(chatId: String, receiverId: String) = "chat/$chatId/$receiverId"
 }
@@ -65,7 +68,24 @@ fun ChatNavHost(container: AppContainer) {
                 viewModel = vm,
                 onOpenChat = { chatId, receiverId ->
                     navController.navigate(Routes.chat(chatId, receiverId))
+                },
+                onOpenSettings = {
+                    navController.navigate(Routes.SETTINGS)
                 }
+            )
+        }
+        composable(Routes.SETTINGS) {
+            val vm: SettingsViewModel = viewModel(
+                factory = SettingsViewModel.Factory(
+                    container.authRepository,
+                    container.userRepository,
+                    container.preferenceRepository,
+                    container.encryptionManager
+                )
+            )
+            SettingsScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
             )
         }
         composable(
