@@ -81,4 +81,16 @@ class FirebaseUserRepository(
             SetOptions.merge()
         ).await()
     }
+
+    override suspend fun blockUser(myUid: String, targetUid: String) {
+        users.document(myUid).update(
+            "blockedUids", com.google.firebase.firestore.FieldValue.arrayUnion(targetUid)
+        ).await()
+    }
+
+    override suspend fun unblockUser(myUid: String, targetUid: String) {
+        users.document(myUid).update(
+            "blockedUids", com.google.firebase.firestore.FieldValue.arrayRemove(targetUid)
+        ).await()
+    }
 }

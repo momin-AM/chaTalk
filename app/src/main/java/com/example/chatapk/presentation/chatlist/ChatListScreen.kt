@@ -176,16 +176,14 @@ fun ChatListScreen(
                                     onClick = {
                                         // TODO: Navigate to settings
                                         showMenu = false
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
+                                    }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Update App") },
                                     onClick = {
                                         viewModel.checkForUpdate(currentVersion)
                                         showMenu = false
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) }
+                                    }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Log out") },
@@ -213,6 +211,17 @@ fun ChatListScreen(
                         modifier = Modifier.padding(16.dp),
                         text = "Error: $error",
                         color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            state.infoMessage?.let { message ->
+                item {
+                    Text(
+                        modifier = Modifier.padding(16.dp),
+                        text = message,
+                        color = Color(0xFF25D366), // WhatsApp Green
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

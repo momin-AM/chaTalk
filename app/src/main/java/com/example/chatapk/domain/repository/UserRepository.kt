@@ -12,4 +12,6 @@ interface UserRepository {
     suspend fun setPresence(uid: String, online: Boolean)
     suspend fun saveMessagingToken(uid: String)
     suspend fun clearMessagingToken(uid: String)
+    suspend fun blockUser(myUid: String, targetUid: String)
+    suspend fun unblockUser(myUid: String, targetUid: String)
 }

@@ -35,6 +35,7 @@ data class ChatListUiState(
     val isLoading: Boolean = true,
     val updateAvailable: String? = null,
     val updateDownloadUrl: String? = null,
+    val infoMessage: String? = null,
     val error: String? = null
 )
 
@@ -123,6 +124,7 @@ class ChatListViewModel(
 
     fun checkForUpdate(currentVersion: String) {
         viewModelScope.launch {
+            _uiState.update { it.copy(infoMessage = null, error = null) }
             when (val result = updateRepository.checkForUpdate(currentVersion)) {
                 is UpdateResult.NewVersionAvailable -> {
                     _uiState.update { it.copy(
@@ -131,7 +133,7 @@ class ChatListViewModel(
                     ) }
                 }
                 is UpdateResult.NoUpdateAvailable -> {
-                    _uiState.update { it.copy(updateAvailable = null, error = "App is up to date") }
+                    _uiState.update { it.copy(updateAvailable = null, infoMessage = "Your app is up to date") }
                 }
                 is UpdateResult.Error -> {
                     _uiState.update { it.copy(error = result.message) }

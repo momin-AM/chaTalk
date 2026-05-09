@@ -22,12 +22,15 @@ import kotlinx.coroutines.launch
 
 data class ChatUiState(
     val currentUserId: String = "",
+    val currentUser: UserProfile? = null,
     val receiver: UserProfile? = null,
     val chat: Chat? = null,
     val messages: List<ChatMessage> = emptyList(),
     val input: String = "",
     val isSending: Boolean = false,
     val isDarkMode: Boolean = false,
+    val isBlockedByMe: Boolean = false,
+    val hasBlockedMe: Boolean = false,
     val error: String? = null
 )
 
@@ -56,6 +59,21 @@ class ChatViewModel(
         viewModelScope.launch {
             userRepository.getUser(receiverId)?.let { receiver ->
                 _uiState.update { it.copy(receiver = receiver) }
+            }
+        }
+        viewModelScope.launch {
+            userRepository.observeCurrentUser(currentUserId).collect { user ->
+                _uiState.update { it.copy(
+                    currentUser = user,
+                    isBlockedByMe = user?.blockedUids?.contains(receiverId) == true
+                ) }
+            }
+        }
+        viewModelScope.launch {
+            userRepository.observeCurrentUser(receiverId).collect { user ->
+                _uiState.update { it.copy(
+                    hasBlockedMe = user?.blockedUids?.contains(currentUserId) == true
+                ) }
             }
         }
         viewModelScope.launch {
@@ -112,6 +130,20 @@ class ChatViewModel(
     fun react(messageId: String, emoji: String?) {
         viewModelScope.launch {
             chatRepository.reactToMessage(chatId, uiState.value.currentUserId, messageId, emoji)
+        }
+    }
+
+    fun toggleBlock() {
+        val state = uiState.value
+        val myUid = state.currentUserId
+        if (myUid.isBlank()) return
+        
+        viewModelScope.launch {
+            if (state.isBlockedByMe) {
+                userRepository.unblockUser(myUid, receiverId)
+            } else {
+                userRepository.blockUser(myUid, receiverId)
+            }
         }
     }
 

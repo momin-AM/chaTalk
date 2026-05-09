@@ -7,5 +7,6 @@ data class UserProfile(
     val profilePictureUrl: String? = null,
     val online: Boolean = false,
     val lastSeen: Long = 0L,
-    val fcmTokens: List<String> = emptyList()
+    val fcmTokens: List<String> = emptyList(),
+    val blockedUids: List<String> = emptyList()
 )

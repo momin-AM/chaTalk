@@ -11,7 +11,7 @@ admin.initializeApp({
 const db = admin.firestore();
 const fcm = admin.messaging();
 
-console.log('Backend starting... v1.5 - Strict Status Mode');
+console.log('Backend starting... v1.6 - Blocking Support');
 
 // 2. Listen for NEW messages
 const query = db.collectionGroup('messages')
@@ -32,33 +32,32 @@ query.onSnapshot(snapshot => {
       const { senderId, receiverId, messageText, timestamp, status } = message;
 
       if (timestamp < (Date.now() - 60000)) return;
-
-      // If already SEEN immediately, skip
       if (status === 'SEEN') return;
 
       const chatId = change.doc.ref.parent.parent.id;
 
       try {
-        // --- 2 SECOND VERIFICATION DELAY ---
-        // We wait to see if the receiver's app marks the message as SEEN
+        // --- VERIFICATION DELAY ---
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         const updatedMsg = await db.doc(messagePath).get();
-        if (!updatedMsg.exists) return;
-
-        const currentStatus = updatedMsg.data().status;
-
-        // If the receiver is in the chat, their app will have marked it as SEEN by now.
-        if (currentStatus === 'SEEN') {
-            console.log(`[${messageId}] SKIP: User is in chat (Message SEEN).`);
+        if (!updatedMsg.exists || updatedMsg.data().status === 'SEEN') {
             return;
         }
 
-        // Fetch receiver's tokens
+        // --- BLOCK CHECK ---
+        // Fetch receiver's info to see if they have blocked the sender
         const userDoc = await db.collection('users').doc(receiverId).get();
         if (!userDoc.exists) return;
 
         const userData = userDoc.data();
+        const blockedUids = userData.blockedUids || [];
+
+        if (blockedUids.includes(senderId)) {
+            console.log(`[${messageId}] SKIP: Sender ${senderId} is blocked by receiver ${receiverId}.`);
+            return;
+        }
+
         const tokens = userData.fcmTokens || [];
         if (tokens.length === 0) return;
 
@@ -106,5 +105,5 @@ query.onSnapshot(snapshot => {
 });
 
 const app = express();
-app.get('/', (req, res) => res.send('ChatApk Backend v1.5 - Strict Status Mode Active'));
+app.get('/', (req, res) => res.send('ChatApk Backend v1.6 - Blocking Support Active'));
 app.listen(process.env.PORT || 3000, '0.0.0.0');

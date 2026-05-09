@@ -16,7 +16,8 @@ fun DocumentSnapshot.toUserProfile(): UserProfile? {
         profilePictureUrl = getString("profilePictureUrl"),
         online = getBoolean("online") ?: false,
         lastSeen = getLong("lastSeen") ?: 0L,
-        fcmTokens = get("fcmTokens") as? List<String> ?: emptyList()
+        fcmTokens = get("fcmTokens") as? List<String> ?: emptyList(),
+        blockedUids = get("blockedUids") as? List<String> ?: emptyList()
     )
 }
 

@@ -94,7 +94,10 @@ fun ChatScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = if (receiverTyping) "typing..." else if (state.receiver?.online == true) "online" else "last seen ${formatTime(state.receiver?.lastSeen ?: 0L)}",
+                                text = if (state.isBlockedByMe || state.hasBlockedMe) "" 
+                                       else if (receiverTyping) "typing..." 
+                                       else if (state.receiver?.online == true) "online" 
+                                       else "last seen ${formatTime(state.receiver?.lastSeen ?: 0L)}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -115,9 +118,9 @@ fun ChatScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Block User") },
+                                text = { Text(if (state.isBlockedByMe) "Unblock User" else "Block User") },
                                 onClick = {
-                                    // TODO: Implement block
+                                    viewModel.toggleBlock()
                                     showMenu = false
                                 }
                             )
@@ -133,12 +136,40 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            MessageInput(
-                value = state.input,
-                isSending = state.isSending,
-                onValueChange = viewModel::updateInput,
-                onSend = viewModel::send
-            )
+            if (state.isBlockedByMe) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { viewModel.toggleBlock() },
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = "You blocked this contact. Tap to unblock.",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            } else if (state.hasBlockedMe) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = "You cannot message this contact.",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            } else {
+                MessageInput(
+                    value = state.input,
+                    isSending = state.isSending,
+                    onValueChange = viewModel::updateInput,
+                    onSend = viewModel::send
+                )
+            }
         }
     ) { padding ->
         LazyColumn(
