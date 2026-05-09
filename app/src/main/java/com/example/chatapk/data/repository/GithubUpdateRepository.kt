@@ -28,6 +28,8 @@ class GithubUpdateRepository(
             val url = URL("https://api.github.com/repos/$githubUser/$repoName/releases/latest")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
+            // GitHub API strictly requires a User-Agent header
+            connection.setRequestProperty("User-Agent", "ChatApk-App")
             connection.connect()
 
             if (connection.responseCode == 200) {
@@ -35,7 +37,11 @@ class GithubUpdateRepository(
                 val releaseJson = json.parseToJsonElement(responseBody).jsonObject
                 val latestVersion = releaseJson["tag_name"]?.jsonPrimitive?.content ?: ""
                 
-                if (latestVersion != currentVersion && latestVersion.isNotEmpty()) {
+                // Clean version strings (remove 'v' prefix if exists) for comparison
+                val cleanLatest = latestVersion.lowercase().removePrefix("v")
+                val cleanCurrent = currentVersion.lowercase().removePrefix("v")
+
+                if (cleanLatest != cleanCurrent && cleanLatest.isNotEmpty()) {
                     val assets = releaseJson["assets"]?.jsonArray
                     val apkAsset = assets?.firstOrNull { 
                         it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true 
@@ -63,9 +69,10 @@ class GithubUpdateRepository(
             val apkFile = File(context.cacheDir, "update.apk")
             val downloadUrl = URL(url)
             val connection = downloadUrl.openConnection() as HttpURLConnection
+            connection.setRequestProperty("User-Agent", "ChatApk-App")
             connection.connect()
             
-            downloadUrl.openStream().use { input ->
+            connection.inputStream.use { input ->
                 apkFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
