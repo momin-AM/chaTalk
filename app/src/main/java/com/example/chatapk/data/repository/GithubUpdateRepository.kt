@@ -25,24 +25,30 @@ class GithubUpdateRepository(
 
     override suspend fun checkForUpdate(currentVersion: String): UpdateResult = withContext(Dispatchers.IO) {
         try {
-            val url = URL("https://api.github.com/repos/$githubUser/$repoName/releases/latest")
+            // Use the list endpoint instead of '/latest' to support pre-releases
+            val url = URL("https://api.github.com/repos/$githubUser/$repoName/releases")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            // GitHub API strictly requires a User-Agent header
             connection.setRequestProperty("User-Agent", "ChatApk-App")
             connection.connect()
 
             if (connection.responseCode == 200) {
                 val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
-                val releaseJson = json.parseToJsonElement(responseBody).jsonObject
-                val latestVersion = releaseJson["tag_name"]?.jsonPrimitive?.content ?: ""
+                val releases = json.parseToJsonElement(responseBody).jsonArray
                 
-                // Clean version strings (remove 'v' prefix if exists) for comparison
-                val cleanLatest = latestVersion.lowercase().removePrefix("v")
-                val cleanCurrent = currentVersion.lowercase().removePrefix("v")
+                if (releases.isEmpty()) {
+                    return@withContext UpdateResult.NoUpdateAvailable
+                }
+
+                // GitHub sorts by date, so the first one is the newest
+                val latestRelease = releases[0].jsonObject
+                val latestVersion = latestRelease["tag_name"]?.jsonPrimitive?.content ?: ""
+                
+                val cleanLatest = latestVersion.lowercase().removePrefix("v").trim()
+                val cleanCurrent = currentVersion.lowercase().removePrefix("v").trim()
 
                 if (cleanLatest != cleanCurrent && cleanLatest.isNotEmpty()) {
-                    val assets = releaseJson["assets"]?.jsonArray
+                    val assets = latestRelease["assets"]?.jsonArray
                     val apkAsset = assets?.firstOrNull { 
                         it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true 
                     }
@@ -51,16 +57,16 @@ class GithubUpdateRepository(
                     if (downloadUrl.isNotEmpty()) {
                         UpdateResult.NewVersionAvailable(latestVersion, downloadUrl)
                     } else {
-                        UpdateResult.NoUpdateAvailable
+                        UpdateResult.Error("No APK found in the latest release")
                     }
                 } else {
                     UpdateResult.NoUpdateAvailable
                 }
             } else {
-                UpdateResult.Error("Failed to check for updates: ${connection.responseCode}")
+                UpdateResult.Error("GitHub API Error: ${connection.responseCode}")
             }
         } catch (e: Exception) {
-            UpdateResult.Error(e.message ?: "Unknown error")
+            UpdateResult.Error("Network Error: ${e.localizedMessage}")
         }
     }
 
