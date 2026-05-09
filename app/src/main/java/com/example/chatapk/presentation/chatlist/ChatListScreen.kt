@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
@@ -82,16 +84,34 @@ fun ChatListScreen(
 
     if (state.updateAvailable != null) {
         AlertDialog(
-            onDismissRequest = { /* Don't allow dismiss if mandatory or just don't handle */ },
+            onDismissRequest = { viewModel.dismissUpdateDialog() },
             title = { Text("Update Available") },
-            text = { Text("A new version (${state.updateAvailable}) is available. Would you like to update?") },
+            text = {
+                Column {
+                    Text("A new version (${state.updateAvailable}) is available. Would you like to update?")
+                    if (state.isDownloadingUpdate) {
+                        Spacer(Modifier.height(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("Downloading update...")
+                        }
+                    }
+                }
+            },
             confirmButton = {
-                TextButton(onClick = { viewModel.downloadAndInstallUpdate() }) {
+                TextButton(
+                    enabled = !state.isDownloadingUpdate,
+                    onClick = { viewModel.downloadAndInstallUpdate() }
+                ) {
                     Text("Update Now")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { /* Could add logic to hide it */ }) {
+                TextButton(
+                    enabled = !state.isDownloadingUpdate,
+                    onClick = { viewModel.dismissUpdateDialog() }
+                ) {
                     Text("Later")
                 }
             }
@@ -145,7 +165,7 @@ fun ChatListScreen(
                 TopAppBar(
                     title = {
                         Column {
-                            Text("ChatApk")
+                            Text("chaTalk")
                             state.currentUser?.let {
                                 Text(
                                     text = it.username,

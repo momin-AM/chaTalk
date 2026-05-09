@@ -35,6 +35,7 @@ data class ChatListUiState(
     val isLoading: Boolean = true,
     val updateAvailable: String? = null,
     val updateDownloadUrl: String? = null,
+    val isDownloadingUpdate: Boolean = false,
     val infoMessage: String? = null,
     val error: String? = null
 )
@@ -144,9 +145,15 @@ class ChatListViewModel(
 
     fun downloadAndInstallUpdate() {
         val url = uiState.value.updateDownloadUrl ?: return
+        _uiState.update { it.copy(isDownloadingUpdate = true) }
         viewModelScope.launch {
             (updateRepository as? GithubUpdateRepository)?.downloadAndInstallApk(url)
+            _uiState.update { it.copy(isDownloadingUpdate = false, updateAvailable = null) }
         }
+    }
+
+    fun dismissUpdateDialog() {
+        _uiState.update { it.copy(updateAvailable = null) }
     }
 
     fun openChat(otherUser: UserProfile, onReady: (chatId: String, receiverId: String) -> Unit) {
