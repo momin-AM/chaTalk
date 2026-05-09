@@ -38,6 +38,10 @@ class FirebaseUserRepository(
             .snapshots()
             .map { snapshot -> snapshot.documents.mapNotNull { it.toUserProfile() } }
 
+    override suspend fun updatePublicKey(uid: String, publicKey: String) {
+        users.document(uid).update("publicKey", publicKey).await()
+    }
+
     override suspend fun getUser(uid: String): UserProfile? =
         users.document(uid).get().await().toUserProfile()
 
@@ -49,7 +53,8 @@ class FirebaseUserRepository(
                 "username" to user.username,
                 "profilePictureUrl" to user.profilePictureUrl,
                 "online" to user.online,
-                "lastSeen" to user.lastSeen
+                "lastSeen" to user.lastSeen,
+                "publicKey" to user.publicKey
                 // We don't overwrite fcmTokens here to avoid clearing them accidentally
             ),
             SetOptions.merge()

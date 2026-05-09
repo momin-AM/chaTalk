@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -292,9 +293,14 @@ private fun MessageBubble(
                     }
                 }
                 if (message.reactions.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        text = message.reactions.values.joinToString(" "),
-                        style = MaterialTheme.typography.bodySmall
+                        text = message.reactions.values.distinct().joinToString(" "),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            RoundedCornerShape(4.dp)
+                        ).padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
             }

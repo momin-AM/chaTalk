@@ -15,7 +15,8 @@ data class LocalChatMessage(
     val messageText: String,
     val timestamp: Long,
     val status: MessageStatus,
-    val reactions: Map<String, String>
+    val reactions: Map<String, String>,
+    val ephemeralPublicKey: String?
 )
 
 @Entity(tableName = "chats")
@@ -28,7 +29,8 @@ data class LocalChat(
     val lastMessageAt: Long,
     val lastMessageStatus: MessageStatus,
     val unreadCounts: Map<String, Long>,
-    val typing: Map<String, Boolean>
+    val typing: Map<String, Boolean>,
+    val lastMessageEphemeralPublicKey: String?
 )
 
 fun LocalChatMessage.toDomain() = ChatMessage(
@@ -38,7 +40,8 @@ fun LocalChatMessage.toDomain() = ChatMessage(
     messageText = messageText,
     timestamp = timestamp,
     status = status,
-    reactions = reactions
+    reactions = reactions,
+    ephemeralPublicKey = ephemeralPublicKey
 )
 
 fun ChatMessage.toLocal(chatId: String) = LocalChatMessage(
@@ -49,7 +52,8 @@ fun ChatMessage.toLocal(chatId: String) = LocalChatMessage(
     messageText = messageText,
     timestamp = timestamp,
     status = status,
-    reactions = reactions
+    reactions = reactions,
+    ephemeralPublicKey = ephemeralPublicKey
 )
 
 fun LocalChat.toDomain() = Chat(
@@ -61,7 +65,8 @@ fun LocalChat.toDomain() = Chat(
     lastMessageAt = lastMessageAt,
     lastMessageStatus = lastMessageStatus,
     unreadCounts = unreadCounts,
-    typing = typing
+    typing = typing,
+    lastMessageEphemeralPublicKey = lastMessageEphemeralPublicKey
 )
 
 fun Chat.toLocal() = LocalChat(
@@ -73,5 +78,6 @@ fun Chat.toLocal() = LocalChat(
     lastMessageAt = lastMessageAt,
     lastMessageStatus = lastMessageStatus,
     unreadCounts = unreadCounts,
-    typing = typing
+    typing = typing,
+    lastMessageEphemeralPublicKey = lastMessageEphemeralPublicKey
 )

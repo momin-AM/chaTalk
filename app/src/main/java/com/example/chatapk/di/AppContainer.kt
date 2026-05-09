@@ -12,6 +12,7 @@ import com.example.chatapk.domain.repository.PreferenceRepository
 import com.example.chatapk.domain.repository.UpdateRepository
 import com.example.chatapk.domain.repository.UserRepository
 import com.example.chatapk.data.repository.GithubUpdateRepository
+import com.example.chatapk.security.EncryptionManager
 import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -26,12 +27,14 @@ class AppContainer(context: Context) {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
     private val messaging = FirebaseMessaging.getInstance()
+    val encryptionManager = EncryptionManager(appContext)
 
     private val db = Room.databaseBuilder(
         appContext,
         ChatDatabase::class.java,
         "chat_db"
-    ).build()
+    ).fallbackToDestructiveMigration(true)
+        .build()
     private val chatDao = db.chatDao()
 
     val preferenceRepository: PreferenceRepository = SharedPreferenceRepository(appContext)
@@ -50,13 +53,15 @@ class AppContainer(context: Context) {
     val chatRepository: ChatRepository = FirebaseChatRepository(
         firestore = firestore,
         users = userRepository,
-        chatDao = chatDao
+        chatDao = chatDao,
+        encryptionManager = encryptionManager
     )
 
     val authRepository: AuthRepository = FirebaseAuthRepository(
         auth = auth,
         users = userRepository,
-        chats = chatRepository
+        chats = chatRepository,
+        encryptionManager = encryptionManager
     )
 
     init {

@@ -1,5 +1,6 @@
 package com.example.chatapk.data.repository
 
+import android.util.Log
 import com.example.chatapk.data.firebase.snapshots
 import com.example.chatapk.data.firebase.toChat
 import com.example.chatapk.data.firebase.toChatMessage
@@ -13,12 +14,15 @@ import com.example.chatapk.domain.model.MessageStatus
 import com.example.chatapk.domain.model.UserProfile
 import com.example.chatapk.domain.repository.ChatRepository
 import com.example.chatapk.domain.repository.UserRepository
+import com.example.chatapk.security.EncryptionManager
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -31,24 +35,51 @@ import kotlinx.coroutines.tasks.await
 class FirebaseChatRepository(
     private val firestore: FirebaseFirestore,
     private val users: UserRepository,
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val encryptionManager: EncryptionManager
 ) : ChatRepository {
     private val chats = firestore.collection("chats")
-    private val repositoryScope = CoroutineScope(Dispatchers.IO)
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val syncJobs = mutableMapOf<String, Job>()
     private val mutex = Mutex()
 
     override fun observeChats(currentUserId: String): Flow<List<Chat>> = flow {
+        if (currentUserId.isBlank()) {
+            emitAll(chatDao.observeChats().map { list -> list.map { it.toDomain() } })
+            return@flow
+        }
+        
         mutex.withLock {
             if (syncJobs["chats_$currentUserId"]?.isActive != true) {
                 syncJobs["chats_$currentUserId"] = repositoryScope.launch {
-                    chats.whereArrayContains("participantIds", currentUserId)
-                        .orderBy("lastMessageAt", Query.Direction.DESCENDING)
-                        .snapshots()
-                        .collect { snapshot ->
-                            val localChats = snapshot.documents.map { it.toChat().toLocal() }
-                            chatDao.insertChats(localChats)
-                        }
+                    try {
+                        chats.whereArrayContains("participantIds", currentUserId)
+                            .orderBy("lastMessageAt", Query.Direction.DESCENDING)
+                            .snapshots()
+                            .collect { snapshot ->
+                                val localChats = snapshot.documents.map { doc ->
+                                    val domain = doc.toChat()
+                                    val otherUserId = domain.participantIds.firstOrNull { it != currentUserId } 
+                                        ?: currentUserId // Handle self-chats
+                                    
+                                    val otherUser = otherUserId.let { users.getUser(it) }
+                                    
+                                    val decryptedLastMessage = try {
+                                        if (otherUser?.publicKey != null && domain.lastMessage.isNotEmpty()) {
+                                            encryptionManager.decrypt(domain.lastMessage, otherUser.publicKey)
+                                        } else {
+                                            domain.lastMessage
+                                        }
+                                    } catch (e: Exception) {
+                                        domain.lastMessage
+                                    }
+                                    domain.copy(lastMessage = decryptedLastMessage).toLocal()
+                                }
+                                chatDao.insertChats(localChats)
+                            }
+                    } catch (e: Exception) {
+                        Log.e("FirebaseChatRepo", "Error observing chats", e)
+                    }
                 }
             }
         }
@@ -56,17 +87,44 @@ class FirebaseChatRepository(
     }
 
     override fun observeMessages(chatId: String): Flow<List<ChatMessage>> = flow {
+        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+        if (currentUserId == null) {
+            emitAll(chatDao.observeMessages(chatId).map { list -> list.map { it.toDomain() } })
+            return@flow
+        }
+        
+        val otherUserId = chatId.split("_").firstOrNull { it != currentUserId } ?: currentUserId
+        
         mutex.withLock {
             if (syncJobs["messages_$chatId"]?.isActive != true) {
                 syncJobs["messages_$chatId"] = repositoryScope.launch {
-                    chats.document(chatId)
-                        .collection("messages")
-                        .orderBy("timestamp", Query.Direction.ASCENDING)
-                        .snapshots()
-                        .collect { snapshot ->
-                            val localMessages = snapshot.documents.map { it.toChatMessage().toLocal(chatId) }
-                            chatDao.insertMessages(localMessages)
-                        }
+                    try {
+                        val otherUser = otherUserId.let { users.getUser(it) }
+                        val otherPublicKey = otherUser?.publicKey
+
+                        chats.document(chatId)
+                            .collection("messages")
+                            .orderBy("timestamp", Query.Direction.ASCENDING)
+                            .snapshots()
+                            .collect { snapshot ->
+                                val localMessages = snapshot.documents.map { doc ->
+                                    val domain = doc.toChatMessage()
+                                    val decryptedText = try {
+                                        if (otherPublicKey != null && domain.messageText.isNotEmpty()) {
+                                            encryptionManager.decrypt(domain.messageText, otherPublicKey)
+                                        } else {
+                                            domain.messageText
+                                        }
+                                    } catch (e: Exception) {
+                                        domain.messageText
+                                    }
+                                    domain.copy(messageText = decryptedText).toLocal(chatId)
+                                }
+                                chatDao.insertMessages(localMessages)
+                            }
+                    } catch (e: Exception) {
+                        Log.e("FirebaseChatRepo", "Error observing messages for $chatId", e)
+                    }
                 }
             }
         }
@@ -84,7 +142,7 @@ class FirebaseChatRepository(
         if (!existing.exists()) {
             chatRef.set(
                 mapOf(
-                    "participantIds" to listOf(currentUserId, otherUser.uid).sorted(),
+                    "participantIds" to listOf(currentUserId, otherUser.uid).distinct().sorted(),
                     "participantNames" to mapOf(
                         currentUserId to currentUser.username,
                         otherUser.uid to otherUser.username
@@ -110,6 +168,19 @@ class FirebaseChatRepository(
     ): Result<Unit> = runCatching {
         val trimmed = text.trim()
         require(trimmed.isNotEmpty()) { "Message cannot be empty" }
+        
+        val receiver = users.getUser(receiverId)
+        val receiverPublicKey = receiver?.publicKey
+        
+        val encryptedText = if (!receiverPublicKey.isNullOrBlank()) {
+            Log.d("E2EE", "Encrypting message for receiver: $receiverId")
+            runCatching { encryptionManager.encrypt(trimmed, receiverPublicKey) }.getOrNull()
+        } else {
+            Log.d("E2EE", "Receiver $receiverId has no public key, sending plain text")
+            null
+        }
+
+        val messageTextToStore = encryptedText ?: trimmed
         val now = System.currentTimeMillis()
         val chatRef = chats.document(chatId)
         val messageRef = chatRef.collection("messages").document()
@@ -120,7 +191,7 @@ class FirebaseChatRepository(
             mapOf(
                 "senderId" to senderId,
                 "receiverId" to receiverId,
-                "messageText" to trimmed,
+                "messageText" to messageTextToStore,
                 "timestamp" to now,
                 "status" to MessageStatus.SENT.name,
                 "reactions" to emptyMap<String, String>()
@@ -129,7 +200,7 @@ class FirebaseChatRepository(
         batch.update(
             chatRef,
             mapOf(
-                "lastMessage" to trimmed,
+                "lastMessage" to messageTextToStore,
                 "lastMessageSenderId" to senderId,
                 "lastMessageAt" to now,
                 "lastMessageStatus" to MessageStatus.SENT.name,
@@ -146,10 +217,11 @@ class FirebaseChatRepository(
                 chatId = chatId,
                 senderId = senderId,
                 receiverId = receiverId,
-                messageText = trimmed,
+                messageText = trimmed, // Store plain text locally for instant feedback
                 timestamp = now,
                 status = MessageStatus.SENT,
-                reactions = emptyMap()
+                reactions = emptyMap(),
+                ephemeralPublicKey = null
             )
         ))
     }
@@ -164,7 +236,6 @@ class FirebaseChatRepository(
             val lastSenderId = chatDoc.getString("lastMessageSenderId")
             val currentStatus = chatDoc.getString("lastMessageStatus")
 
-            // Only proceed if we are the receiver of the last message
             if (lastSenderId == currentUserId || lastSenderId.isNullOrBlank()) return@runCatching
 
             val snapshot = chatRef.collection("messages")
@@ -191,6 +262,8 @@ class FirebaseChatRepository(
             if (needsUpdate) {
                 batch.commit().await()
             }
+        }.onFailure { e ->
+            Log.e("FirebaseChatRepo", "Error marking delivered", e)
         }
     }
 
@@ -205,7 +278,6 @@ class FirebaseChatRepository(
             val currentStatus = chatDoc.getString("lastMessageStatus")
             val unreadCount = (chatDoc.get("unreadCounts") as? Map<*, *>)?.get(currentUserId) as? Long ?: 0L
 
-            // Only proceed if we are the receiver of the last message or have unread messages
             if (lastSenderId == currentUserId && unreadCount == 0L) return@runCatching
 
             val snapshot = chatRef.collection("messages")
@@ -237,6 +309,8 @@ class FirebaseChatRepository(
             if (needsUpdate) {
                 batch.commit().await()
             }
+        }.onFailure { e ->
+            Log.e("FirebaseChatRepo", "Error marking seen", e)
         }
     }
 
@@ -284,5 +358,7 @@ class FirebaseChatRepository(
     }
 
     private fun chatIdFor(first: String, second: String): String =
-        listOf(first, second).sorted().joinToString(separator = "_")
+        listOf(first, second).distinct().sorted().let {
+            if (it.size == 1) "${it[0]}_${it[0]}" else it.joinToString(separator = "_")
+        }
 }

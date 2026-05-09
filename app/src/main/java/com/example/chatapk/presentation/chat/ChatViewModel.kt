@@ -1,5 +1,6 @@
 package com.example.chatapk.presentation.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,7 +13,6 @@ import com.example.chatapk.domain.repository.PreferenceRepository
 import com.example.chatapk.domain.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,66 +46,96 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    private var messagesJob: Job? = null
+    private var chatsJob: Job? = null
+
     init {
         val currentUserId = authRepository.currentUserId.orEmpty()
         _uiState.update { it.copy(currentUserId = currentUserId) }
 
-        viewModelScope.launch {
-            preferenceRepository.isDarkMode.collect { isDark ->
-                _uiState.update { it.copy(isDarkMode = isDark) }
+        if (currentUserId.isNotBlank()) {
+            viewModelScope.launch {
+                preferenceRepository.isDarkMode.collect { isDark ->
+                    _uiState.update { it.copy(isDarkMode = isDark) }
+                }
             }
-        }
 
-        viewModelScope.launch {
-            userRepository.getUser(receiverId)?.let { receiver ->
-                _uiState.update { it.copy(receiver = receiver) }
+            viewModelScope.launch {
+                userRepository.getUser(receiverId)?.let { receiver ->
+                    _uiState.update { it.copy(receiver = receiver) }
+                }
             }
-        }
-        viewModelScope.launch {
-            userRepository.observeCurrentUser(currentUserId).collect { user ->
-                _uiState.update { it.copy(
-                    currentUser = user,
-                    isBlockedByMe = user?.blockedUids?.contains(receiverId) == true
-                ) }
+            
+            viewModelScope.launch {
+                userRepository.observeCurrentUser(currentUserId).collect { user ->
+                    _uiState.update { it.copy(
+                        currentUser = user,
+                        isBlockedByMe = user?.blockedUids?.contains(receiverId) == true
+                    ) }
+                }
             }
-        }
-        viewModelScope.launch {
-            userRepository.observeCurrentUser(receiverId).collect { user ->
-                _uiState.update { it.copy(
-                    hasBlockedMe = user?.blockedUids?.contains(currentUserId) == true
-                ) }
+            
+            viewModelScope.launch {
+                userRepository.observeCurrentUser(receiverId).collect { user ->
+                    _uiState.update { it.copy(
+                        hasBlockedMe = user?.blockedUids?.contains(currentUserId) == true
+                    ) }
+                }
             }
+            
+            startObserving()
+            
+            viewModelScope.launch {
+                chatRepository.markChatSeen(chatId, currentUserId)
+            }
+        } else {
+            _uiState.update { it.copy(error = "User not authenticated") }
         }
-        viewModelScope.launch {
+    }
+
+    private fun startObserving() {
+        val currentUserId = uiState.value.currentUserId
+        if (currentUserId.isBlank()) return
+        
+        messagesJob?.cancel()
+        messagesJob = viewModelScope.launch {
             chatRepository.observeMessages(chatId)
-                .catch { e -> _uiState.update { it.copy(error = e.message ?: "Failed to load messages") } }
+                .catch { e -> 
+                    Log.e("ChatViewModel", "Error observing messages", e)
+                    _uiState.update { it.copy(error = e.message ?: "Failed to load messages") } 
+                }
                 .collect { messages ->
                     _uiState.update { it.copy(messages = messages) }
                     chatRepository.markIncomingDelivered(chatId, currentUserId)
                 }
         }
-        viewModelScope.launch {
+
+        chatsJob?.cancel()
+        chatsJob = viewModelScope.launch {
             chatRepository.observeChats(currentUserId)
-                .catch { e -> _uiState.update { it.copy(error = e.message ?: "Failed to load chat info") } }
-                .collect { chats ->
-                    _uiState.update { it.copy(chat = chats.firstOrNull { chat -> chat.id == chatId }) }
+                .catch { e -> 
+                    Log.e("ChatViewModel", "Error observing chats", e)
+                    _uiState.update { it.copy(error = e.message ?: "Failed to load chat info") } 
                 }
-        }
-        viewModelScope.launch {
-            chatRepository.markChatSeen(chatId, currentUserId)
+                .collect { chats ->
+                    val chat = chats.firstOrNull { it.id == chatId }
+                    _uiState.update { it.copy(chat = chat) }
+                }
         }
     }
 
     fun updateInput(value: String) {
         _uiState.update { it.copy(input = value, error = null) }
         viewModelScope.launch {
-            chatRepository.setTyping(chatId, uiState.value.currentUserId, value.isNotBlank())
+            if (uiState.value.currentUserId.isNotBlank()) {
+                chatRepository.setTyping(chatId, uiState.value.currentUserId, value.isNotBlank())
+            }
         }
     }
 
     fun send() {
         val state = uiState.value
-        if (state.input.isBlank() || state.isSending) return
+        if (state.input.isBlank() || state.isSending || state.currentUserId.isBlank()) return
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true, error = null) }
             val result = chatRepository.sendMessage(
@@ -122,14 +152,20 @@ class ChatViewModel(
     }
 
     fun markSeen() {
-        viewModelScope.launch {
-            chatRepository.markChatSeen(chatId, uiState.value.currentUserId)
+        val uid = uiState.value.currentUserId
+        if (uid.isNotBlank()) {
+            viewModelScope.launch {
+                chatRepository.markChatSeen(chatId, uid)
+            }
         }
     }
 
     fun react(messageId: String, emoji: String?) {
-        viewModelScope.launch {
-            chatRepository.reactToMessage(chatId, uiState.value.currentUserId, messageId, emoji)
+        val uid = uiState.value.currentUserId
+        if (uid.isNotBlank()) {
+            viewModelScope.launch {
+                chatRepository.reactToMessage(chatId, messageId, uid, emoji)
+            }
         }
     }
 

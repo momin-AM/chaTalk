@@ -29,7 +29,7 @@ query.onSnapshot(snapshot => {
       processedMessages.add(messageId);
 
       const message = change.doc.data();
-      const { senderId, receiverId, messageText, timestamp, status } = message;
+      const { senderId, receiverId, messageText, timestamp, status, ephemeralPublicKey } = message;
 
       if (timestamp < (Date.now() - 60000)) return;
       if (status === 'SEEN') return;
@@ -73,6 +73,7 @@ query.onSnapshot(snapshot => {
           data: {
             senderId: senderId,
             chatId: chatId,
+            ephemeralPublicKey: ephemeralPublicKey || "",
             click_action: "FLUTTER_NOTIFICATION_CLICK"
           }
         };

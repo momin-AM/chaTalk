@@ -17,7 +17,8 @@ fun DocumentSnapshot.toUserProfile(): UserProfile? {
         online = getBoolean("online") ?: false,
         lastSeen = getLong("lastSeen") ?: 0L,
         fcmTokens = get("fcmTokens") as? List<String> ?: emptyList(),
-        blockedUids = get("blockedUids") as? List<String> ?: emptyList()
+        blockedUids = get("blockedUids") as? List<String> ?: emptyList(),
+        publicKey = getString("publicKey")
     )
 }
 
@@ -32,7 +33,8 @@ fun DocumentSnapshot.toChat(): Chat {
         lastMessageAt = getLong("lastMessageAt") ?: 0L,
         lastMessageStatus = runCatching { MessageStatus.valueOf(rawStatus) }.getOrDefault(MessageStatus.SENT),
         unreadCounts = get("unreadCounts") as? Map<String, Long> ?: emptyMap(),
-        typing = get("typing") as? Map<String, Boolean> ?: emptyMap()
+        typing = get("typing") as? Map<String, Boolean> ?: emptyMap(),
+        lastMessageEphemeralPublicKey = getString("lastMessageEphemeralPublicKey")
     )
 }
 
@@ -45,6 +47,7 @@ fun DocumentSnapshot.toChatMessage(): ChatMessage {
         messageText = getString("messageText").orEmpty(),
         timestamp = getLong("timestamp") ?: 0L,
         status = runCatching { MessageStatus.valueOf(rawStatus) }.getOrDefault(MessageStatus.SENT),
-        reactions = get("reactions") as? Map<String, String> ?: emptyMap()
+        reactions = get("reactions") as? Map<String, String> ?: emptyMap(),
+        ephemeralPublicKey = getString("ephemeralPublicKey")
     )
 }

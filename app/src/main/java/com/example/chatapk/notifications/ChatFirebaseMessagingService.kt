@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.chatapk.R
+import com.example.chatapk.ChatApkApplication
 import com.example.chatapk.di.NotificationChannels
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -36,7 +37,26 @@ class ChatFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         val title = message.notification?.title ?: message.data["title"] ?: "New message"
-        val body = message.notification?.body ?: message.data["body"] ?: "Open ChatApk to read it"
+        var body = message.notification?.body ?: message.data["body"] ?: "Open ChatApk to read it"
+
+        val senderId = message.data["senderId"]
+        if (!senderId.isNullOrBlank()) {
+            val container = (application as ChatApkApplication).container
+            val encryptionManager = container.encryptionManager
+            body = try {
+                // We need to fetch sender's public key. Since this is a service, we can't easily wait for long.
+                // But we can use runBlocking for a quick fetch if needed, though not ideal.
+                // Better: if it fails, just show "Encrypted message"
+                val sender = kotlinx.coroutines.runBlocking { container.userRepository.getUser(senderId) }
+                if (sender?.publicKey != null) {
+                    encryptionManager.decrypt(body, sender.publicKey)
+                } else {
+                    body
+                }
+            } catch (e: Exception) {
+                "Encrypted message"
+            }
+        }
 
         val notification = NotificationCompat.Builder(this, NotificationChannels.MESSAGES)
             .setSmallIcon(R.drawable.ic_launcher_foreground)

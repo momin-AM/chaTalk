@@ -9,5 +9,6 @@ data class Chat(
     val lastMessageAt: Long = 0L,
     val lastMessageStatus: MessageStatus = MessageStatus.SENT,
     val unreadCounts: Map<String, Long> = emptyMap(),
-    val typing: Map<String, Boolean> = emptyMap()
+    val typing: Map<String, Boolean> = emptyMap(),
+    val lastMessageEphemeralPublicKey: String? = null
 )

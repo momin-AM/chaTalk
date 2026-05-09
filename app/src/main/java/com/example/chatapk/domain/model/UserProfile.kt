@@ -8,5 +8,6 @@ data class UserProfile(
     val online: Boolean = false,
     val lastSeen: Long = 0L,
     val fcmTokens: List<String> = emptyList(),
-    val blockedUids: List<String> = emptyList()
+    val blockedUids: List<String> = emptyList(),
+    val publicKey: String? = null
 )

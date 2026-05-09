@@ -14,4 +14,5 @@ interface UserRepository {
     suspend fun clearMessagingToken(uid: String)
     suspend fun blockUser(myUid: String, targetUid: String)
     suspend fun unblockUser(myUid: String, targetUid: String)
+    suspend fun updatePublicKey(uid: String, publicKey: String)
 }

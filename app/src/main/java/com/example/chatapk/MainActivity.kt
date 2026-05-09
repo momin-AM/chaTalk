@@ -3,6 +3,7 @@ package com.example.chatapk
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -40,7 +41,14 @@ class MainActivity : ComponentActivity() {
             override fun onStart(owner: LifecycleOwner) {
                 container.authRepository.currentUserId?.let { uid ->
                     container.applicationScope.launch {
-                        container.userRepository.setPresence(uid, true)
+                        try {
+                            container.userRepository.setPresence(uid, true)
+                            val publicKey = container.encryptionManager.getPublicKeyBase64()
+                            container.userRepository.updatePublicKey(uid, publicKey)
+                            Log.d("E2EE", "Public key registered successfully for user $uid")
+                        } catch (e: Exception) {
+                            Log.e("E2EE", "Failed to register public key", e)
+                        }
                     }
                 }
             }
@@ -57,7 +65,7 @@ class MainActivity : ComponentActivity() {
         // Log FCM token for debugging
         com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                android.util.Log.d("FCM_TOKEN", "Token: ${task.result}")
+                Log.d("FCM_TOKEN", "Token: ${task.result}")
             }
         }
 
@@ -87,7 +95,7 @@ private fun ChatApkTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
     )
     val dark = darkColorScheme(
         primary = AccentGreen,
-        onPrimary = Color(0xFF0B141A), // Dark color for bright green
+        onPrimary = Color(0xFF0B141A), 
         secondary = WhatsAppGreen,
         onSecondary = Color.White,
         surface = DarkSurface,
@@ -107,7 +115,6 @@ private fun ChatApkTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
                 SideEffect {
                     val window = (view.context as android.app.Activity).window
                     window.statusBarColor = if (isDarkMode) DarkSurface.toArgb() else WhatsAppGreen.toArgb()
-                    // Use light icons (white) for both dark mode and light mode (since the light mode bar is dark green)
                     WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
                 }
             }
