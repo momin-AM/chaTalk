@@ -1,0 +1,8 @@
+package com.example.chatapk.domain.repository
+
+import kotlinx.coroutines.flow.Flow
+
+interface PreferenceRepository {
+    val isDarkMode: Flow<Boolean>
+    suspend fun setDarkMode(enabled: Boolean)
+}

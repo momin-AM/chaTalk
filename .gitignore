@@ -1,0 +1,28 @@
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# Build outputs
+*.apk
+*.aar
+*.jks
+
+# Firebase / Private Keys
+app/google-services.json
+backend/serviceAccountKey.json
+backend/.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# System files
+.DS_Store
+Thumbs.db
+*.hprof

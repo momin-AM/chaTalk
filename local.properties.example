@@ -1,0 +1,3 @@
+## Copy to local.properties if Android Studio does not create it automatically.
+## Do not commit your real local.properties file.
+sdk.dir=/path/to/Android/Sdk
