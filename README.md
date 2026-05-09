@@ -1,117 +1,94 @@
-# ChatApk
+# chaTalk 💬
 
-Scalable text-only Android chat app scaffolded with Kotlin, Jetpack Compose, MVVM, Firebase Auth, Cloud Firestore, and Firebase Cloud Messaging.
+**chaTalk** is a modern, secure, and production-ready Android chat application. Built with a focus on privacy and user experience, it features full **End-to-End Encryption (E2EE)**, real-time synchronization, and a familiar WhatsApp-style interface.
 
-## Project Structure
+## ✨ Key Features
+
+- 🔒 **End-to-End Encryption (E2EE)**: Messages are secured using **ECDH** (Elliptic Curve Diffie-Hellman) for key exchange and **AES-256-GCM** for message encryption. Your private keys never leave your device.
+- ⚡ **Real-time Messaging**: Instant message delivery and status updates (Sent ✓, Delivered ✓✓, Seen ✓✓) powered by Firebase Firestore.
+- 🔔 **Encrypted Push Notifications**: Receive real-time alerts even when the app is closed. Notification contents are decrypted locally on your device.
+- 🌓 **Dynamic Theming**: Full support for Light and Dark modes with a seamless toggle in settings.
+- 😊 **Message Interactions**: React to messages with emojis, copy text to clipboard, or delete messages for everyone.
+- 🔄 **Auto-Updates**: Integrated GitHub release tracking—the app notifies you when a new version is available and handles the update process.
+- ⌨️ **Smart UI**: Interactive keyboard handling with sticky headers and auto-scrolling conversations.
+
+## 🛠 Tech Stack
+
+- **Language**: [Kotlin](https://kotlinlang.org/)
+- **UI Framework**: [Jetpack Compose](https://developer.android.com/jetpack/compose) (100% declarative UI)
+- **Database**: [Firebase Firestore](https://firebase.google.com/docs/firestore) (Cloud) & [Room](https://developer.android.com/training/data-storage/room) (Local Cache)
+- **Authentication**: [Firebase Auth](https://firebase.google.com/docs/auth) (Email/Password)
+- **Notifications**: [Firebase Cloud Messaging (FCM)](https://firebase.google.com/docs/cloud-messaging)
+- **Architecture**: MVVM (Model-View-ViewModel) with Clean Architecture principles and Repository pattern.
+- **Dependency Injection**: Manual DI via App Container.
+- **Cryptography**: Java Cryptography Architecture (JCA) with ECDH secp256r1.
+
+## 📂 Project Structure
 
 ```text
 app/src/main/java/com/example/chatapk
 ├── data
-│   ├── firebase          # Firestore snapshot Flow adapters and mappers
-│   └── repository        # Firebase Auth, user, and chat implementations
-├── di                    # Lightweight app container and notification channels
+│   ├── firebase          # Firestore adapters and data mapping
+│   ├── local             # Room Database, DAOs, and Entities
+│   └── repository        # Implementation of Auth, User, and Chat logic
+├── di                    # AppContainer for dependency management
 ├── domain
-│   ├── model             # UserProfile, Chat, ChatMessage, MessageStatus
-│   └── repository        # Repository contracts
-├── notifications         # FCM service
-└── presentation
-    ├── auth              # Login/signup screen and ViewModel
-    ├── chat              # One-to-one conversation screen and ViewModel
-    ├── chatlist          # Recent chats and people list
-    ├── common            # Shared UI helpers
-    └── navigation        # Compose navigation graph
+│   ├── model             # Business models (Chat, Message, User)
+│   └── repository        # Interface definitions for repositories
+├── notifications         # Firebase Messaging Service
+├── security              # EncryptionManager for E2EE logic
+└── presentation          # UI Layers
+    ├── auth              # Login & Registration
+    ├── chat              # Message thread & context menus
+    ├── chatlist          # Recent conversations & User search
+    ├── settings          # Profile management & App preferences
+    └── navigation        # Compose Navigation Graph
 ```
 
-## Firebase Setup
+## 🚀 Getting Started
 
-1. Create a Firebase project.
-2. Add an Android app with package name `com.example.chatapk`.
-3. Download `google-services.json`.
-4. Put it here:
+### 1. Firebase Configuration
+- Create a project in the [Firebase Console](https://console.firebase.google.com/).
+- Add an Android App with package name `com.example.chatapk`.
+- Download `google-services.json` and place it in the `app/` directory.
+- Enable **Email/Password** Authentication.
+- Create a **Firestore** Database and a **Storage** bucket (optional).
 
-```text
-app/google-services.json
-```
+### 2. Firestore Security Rules
+Paste the following rules into your Firebase Console to secure your data:
 
-5. Ensure Android Studio creates `local.properties`, or copy `local.properties.example` to `local.properties` and set `sdk.dir`.
-6. Enable Firebase Authentication with Email/Password.
-7. Create a Cloud Firestore database.
-8. Enable Firebase Cloud Messaging.
-9. Import the composite indexes from `firestore.indexes.json`, or create them from the Firestore console prompts.
-10. Sync the Gradle project in Android Studio.
-
-The Google Services plugin is applied only when `app/google-services.json` exists, so the project can sync before Firebase config is added.
-
-## Firestore Schema
-
-```text
-users/{uid}
-  uid: string
-  email: string
-  username: string
-  profilePictureUrl: string | null
-  online: boolean
-  lastSeen: number
-  fcmTokens: string[]
-
-chats/{chatId}
-  participantIds: string[]       # sorted pair of user ids
-  participantNames: map          # uid -> username snapshot
-  lastMessage: string
-  lastMessageSenderId: string
-  lastMessageAt: number
-  unreadCounts: map              # uid -> number
-  typing: map                    # uid -> boolean
-  createdAt: number
-
-chats/{chatId}/messages/{messageId}
-  senderId: string
-  receiverId: string
-  messageText: string
-  timestamp: number
-  status: SENT | DELIVERED | SEEN
-  reactions: map                 # userId -> emoji
-```
-
-`chatId` is deterministic: the two participant ids sorted and joined with `_`.
-
-## Suggested Firestore Rules Starter
-
-```js
+```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
-
+    function isSignedIn() { return request.auth != null; }
     function isParticipant(chatId) {
-      return signedIn()
-        && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
+      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return isSignedIn() && request.auth.uid in chat.participantIds;
     }
-
-    match /users/{uid} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() && request.auth.uid == uid;
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
-
     match /chats/{chatId} {
-      allow read, update: if isParticipant(chatId);
-      allow create: if signedIn()
-        && request.auth.uid in request.resource.data.participantIds
-        && request.resource.data.participantIds.size() == 2;
-
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
       match /messages/{messageId} {
-        allow read: if isParticipant(chatId);
-        allow create: if isParticipant(chatId)
-          && request.resource.data.senderId == request.auth.uid;
-        allow update: if isParticipant(chatId);
+        allow read, create, update, delete: if isParticipant(chatId);
       }
     }
   }
 }
 ```
 
-## Notifications
+### 3. Backend (Optional)
+The project includes a Node.js backend (`/backend`) designed to run as a Firebase Cloud Function or a standalone server to handle FCM push notifications for new messages.
 
-The app stores FCM tokens and can display incoming FCM messages. Sending push notifications for new Firestore messages requires a trusted server environment, typically Firebase Cloud Functions triggered by `chats/{chatId}/messages/{messageId}`. Do not put FCM server keys in the Android app.
+## 🗺 Roadmap
+- [ ] **Google Drive Backup**: Support for backing up private keys and chat history to the user's personal Google Drive.
+- [ ] **Media Sharing**: Support for sending images, videos, and voice notes.
+- [ ] **Group Chats**: Encrypted multi-user conversations.
+- [ ] **Biometric Lock**: Secure access to the app using Fingerprint/FaceID.
+
+---
+*We will implement more functions soon!*
