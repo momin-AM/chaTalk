@@ -38,8 +38,8 @@ class AppContainer(context: Context) {
 
     val updateRepository: UpdateRepository = GithubUpdateRepository(
         context = appContext,
-        githubUser = "momin", // Replace with your GitHub username
-        repoName = "chatApk"   // Replace with your Repo name
+        githubUser = "momin-AM", // Replace with your GitHub username
+        repoName = "chaTalk"   // Replace with your Repo name
     )
 
     val userRepository: UserRepository = FirebaseUserRepository(
