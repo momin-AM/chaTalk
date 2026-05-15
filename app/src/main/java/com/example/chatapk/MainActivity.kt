@@ -1,6 +1,7 @@
 package com.example.chatapk
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -14,6 +15,8 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -30,8 +33,16 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    private var pendingChatId by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Prevent screenshots and hide content in recent apps
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+
+        handleIntent(intent)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -45,7 +56,6 @@ class MainActivity : ComponentActivity() {
                             container.userRepository.setPresence(uid, true)
                             val publicKey = container.encryptionManager.getPublicKeyBase64()
                             container.userRepository.updatePublicKey(uid, publicKey)
-                            Log.d("E2EE", "Public key registered successfully for user $uid")
                         } catch (e: Exception) {
                             Log.e("E2EE", "Failed to register public key", e)
                         }
@@ -62,19 +72,23 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        // Log FCM token for debugging
-        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                Log.d("FCM_TOKEN", "Token: ${task.result}")
-            }
-        }
-
         setContent {
             val isDarkMode by container.preferenceRepository.isDarkMode.collectAsState(initial = isSystemInDarkTheme())
             ChatApkTheme(isDarkMode = isDarkMode) {
-                ChatNavHost(container = container)
+                ChatNavHost(container = container, pendingChatId = pendingChatId)
+                // Reset pendingChatId after passing to NavHost
+                SideEffect { pendingChatId = null }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        pendingChatId = intent?.getStringExtra("chatId")
     }
 }
 

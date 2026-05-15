@@ -332,26 +332,24 @@ fun ChatListScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
-                state.error?.let { error ->
-                    item {
-                        Text(
-                            modifier = Modifier.padding(16.dp),
-                            text = "Error: $error",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                item {
+                    val displayMessage = state.error ?: state.infoMessage
+                    val textColor = if (state.error != null) {
+                        MaterialTheme.colorScheme.error
+                    } else if (state.infoMessage != "beta version") {
+                        Color(0xFF25D366) // WhatsApp Green for "Message forwarded" etc.
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) // Subtler for "beta version"
                     }
-                }
 
-                state.infoMessage?.let { message ->
-                    item {
-                        Text(
-                            modifier = Modifier.padding(16.dp),
-                            text = message,
-                            color = Color(0xFF25D366), // WhatsApp Green
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    Text(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                        text = displayMessage,
+                        color = textColor,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (state.infoMessage != "beta version" || state.error != null) FontWeight.Bold else FontWeight.Normal
+                    )
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 }
 
                 if (state.isSearchMode) {

@@ -37,7 +37,7 @@ data class ChatListUiState(
     val updateAvailable: String? = null,
     val updateDownloadUrl: String? = null,
     val isDownloadingUpdate: Boolean = false,
-    val infoMessage: String? = null,
+    val infoMessage: String = "beta version",
     val error: String? = null,
     val forwardingMessage: String? = null,
     val selectedChatIds: Set<String> = emptySet(),
@@ -135,7 +135,7 @@ class ChatListViewModel(
 
     fun checkForUpdate(currentVersion: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(infoMessage = null, error = null) }
+            _uiState.update { it.copy(infoMessage = "beta version", error = null) }
             when (val result = updateRepository.checkForUpdate(currentVersion)) {
                 is UpdateResult.NewVersionAvailable -> {
                     _uiState.update { it.copy(
@@ -247,7 +247,8 @@ class ChatListViewModel(
             _uiState.update { it.copy(
                 selectedChatIds = emptySet(),
                 isForwardingInProgress = false,
-                infoMessage = "Message forwarded"
+                infoMessage = "Message forwarded successfully",
+                error = null
             ) }
             forwardManager.clearForwarding()
         }

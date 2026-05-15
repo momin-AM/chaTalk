@@ -2,23 +2,24 @@ package com.example.chatapk.notifications
 
 import android.Manifest
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.chatapk.R
 import com.example.chatapk.ChatApkApplication
+import com.example.chatapk.MainActivity
 import com.example.chatapk.di.NotificationChannels
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import android.util.Log
 
 class ChatFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
-        Log.d("FCM", "New token: $token")
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         FirebaseFirestore.getInstance()
             .collection("users")
@@ -27,7 +28,6 @@ class ChatFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        Log.d("FCM", "Message received from: ${message.from}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(
                 this,
@@ -44,16 +44,29 @@ class ChatFirebaseMessagingService : FirebaseMessagingService() {
             val container = (application as ChatApkApplication).container
             val encryptionManager = container.encryptionManager
             body = try {
-                val sender = kotlinx.coroutines.runBlocking { container.userRepository.getUser(senderId) }
-                if (sender?.publicKey != null) {
-                    encryptionManager.decrypt(body, sender.publicKey)
-                } else {
-                    "New message" // Hide encrypted text if we can't decrypt
+                kotlinx.coroutines.runBlocking {
+                    kotlinx.coroutines.withTimeoutOrNull(5000) {
+                        val sender = container.userRepository.getUser(senderId)
+                        if (sender?.publicKey != null) {
+                            encryptionManager.decrypt(body, sender.publicKey)
+                        } else {
+                            "New message"
+                        }
+                    } ?: "New message"
                 }
             } catch (e: Exception) {
                 "New message"
             }
         }
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("chatId", message.data["chatId"])
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
         val notification = NotificationCompat.Builder(this, NotificationChannels.MESSAGES)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -61,6 +74,7 @@ class ChatFirebaseMessagingService : FirebaseMessagingService() {
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
             .build()
 
         getSystemService(NotificationManager::class.java)

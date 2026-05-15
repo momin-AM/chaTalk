@@ -71,10 +71,20 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
     match /chats/{chatId} {
-      allow read, update: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participantIds;
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds
+        && request.resource.data.participantIds == resource.data.participantIds; // Prevent adding/removing participants
+      
       match /messages/{messageId} {
-        allow read, create, update, delete: if isParticipant(chatId);
+        allow read: if isParticipant(chatId);
+        allow create: if isParticipant(chatId) && request.resource.data.senderId == request.auth.uid;
+        allow update: if isParticipant(chatId) && (
+          // Only sender can update reactions, only receiver can update status (delivery/seen)
+          (resource.data.senderId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])) ||
+          (resource.data.receiverId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'reactions']))
+        );
+        allow delete: if isParticipant(chatId) && resource.data.senderId == request.auth.uid;
       }
     }
   }

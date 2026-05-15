@@ -30,10 +30,24 @@ private object Routes {
 }
 
 @Composable
-fun ChatNavHost(container: AppContainer) {
+fun ChatNavHost(
+    container: AppContainer,
+    pendingChatId: String? = null
+) {
     val navController = rememberNavController()
     val authUserId by container.authRepository.authState().collectAsState(initial = container.authRepository.currentUserId)
     val startRoute = if (authUserId == null) Routes.AUTH else Routes.CHATS
+
+    LaunchedEffect(pendingChatId) {
+        if (pendingChatId != null && authUserId != null) {
+            // Logic to navigate to a specific chat when notification is tapped
+            // For now, we navigate to the chat list (inbox) which fulfills the requirement
+            // "tapping on notification should lead to the inbox"
+            navController.navigate(Routes.CHATS) {
+                popUpTo(0)
+            }
+        }
+    }
 
     LaunchedEffect(authUserId) {
         if (authUserId == null) {

@@ -173,10 +173,8 @@ class FirebaseChatRepository(
         val receiverPublicKey = receiver?.publicKey
         
         val encryptedText = if (!receiverPublicKey.isNullOrBlank()) {
-            Log.d("E2EE", "Encrypting message for receiver: $receiverId")
             runCatching { encryptionManager.encrypt(trimmed, receiverPublicKey) }.getOrNull()
         } else {
-            Log.e("E2EE", "Receiver $receiverId has no public key, aborting send.")
             throw IllegalStateException("End-to-end encryption is required but receiver has no public key.")
         }
 

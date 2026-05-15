@@ -18,6 +18,7 @@ data class SettingsUiState(
     val currentUser: UserProfile? = null,
     val isDarkMode: Boolean = false,
     val publicKey: String = "",
+    val fingerprint: String = "",
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -51,7 +52,8 @@ class SettingsViewModel(
             }
         }
 
-        _uiState.update { it.copy(publicKey = encryptionManager.getPublicKeyBase64()) }
+        val pubKey = encryptionManager.getPublicKeyBase64()
+        _uiState.update { it.copy(publicKey = pubKey, fingerprint = encryptionManager.getFingerprint(pubKey)) }
     }
 
     fun toggleDarkMode(isDark: Boolean) {

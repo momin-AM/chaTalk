@@ -128,9 +128,16 @@ fun SettingsScreen(
                 icon = Icons.Default.Lock
             )
             
-            if (state.publicKey.isNotEmpty()) {
+            if (state.fingerprint.isNotEmpty()) {
                 Text(
-                    text = "Your public key: ${state.publicKey.take(20)}...",
+                    text = "Security Fingerprint:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 72.dp)
+                )
+                Text(
+                    text = state.fingerprint,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 72.dp)

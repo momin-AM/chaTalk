@@ -48,7 +48,7 @@ class GithubUpdateRepository(
                 val cleanLatest = latestVersion.lowercase().removePrefix("v").trim()
                 val cleanCurrent = currentVersion.lowercase().removePrefix("v").trim()
 
-                if (cleanLatest != cleanCurrent && cleanLatest.isNotEmpty()) {
+                if (isNewer(cleanLatest, cleanCurrent)) {
                     val assets = latestRelease["assets"]?.jsonArray
                     val apkAsset = assets?.firstOrNull { 
                         it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true 
@@ -142,5 +142,22 @@ class GithubUpdateRepository(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    private fun isNewer(latest: String, current: String): Boolean {
+        if (latest.isEmpty()) return false
+        if (current.isEmpty()) return true
+        
+        val latestParts = latest.split('.').mapNotNull { it.toIntOrNull() }
+        val currentParts = current.split('.').mapNotNull { it.toIntOrNull() }
+        val maxLen = maxOf(latestParts.size, currentParts.size)
+        
+        for (i in 0 until maxLen) {
+            val l = latestParts.getOrElse(i) { 0 }
+            val c = currentParts.getOrElse(i) { 0 }
+            if (l > c) return true
+            if (l < c) return false
+        }
+        return false
     }
 }

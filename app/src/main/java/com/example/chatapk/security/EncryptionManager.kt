@@ -61,6 +61,17 @@ class EncryptionManager(context: Context) {
         return Base64.encodeToString(getOrGenerateIdentityKeyPair().encoded, Base64.NO_WRAP)
     }
 
+    fun getFingerprint(publicKeyStr: String): String {
+        return try {
+            val bytes = Base64.decode(publicKeyStr, Base64.NO_WRAP)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(bytes)
+            hash.joinToString(":") { "%02X".format(it) }
+        } catch (e: Exception) {
+            "Error generating fingerprint"
+        }
+    }
+
     private fun getPrivateKey(): PrivateKey {
         val encPrivKeyStr = prefs.getString(privKeyEncKey, null) ?: throw IllegalStateException("Private key missing")
         val ivStr = prefs.getString(privKeyIvKey, null) ?: throw IllegalStateException("IV missing")
