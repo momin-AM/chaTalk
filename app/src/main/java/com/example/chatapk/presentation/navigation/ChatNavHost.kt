@@ -61,7 +61,8 @@ fun ChatNavHost(container: AppContainer) {
                     container.chatRepository,
                     container.userRepository,
                     container.preferenceRepository,
-                    container.updateRepository
+                    container.updateRepository,
+                    container.forwardManager
                 )
             )
             ChatListScreen(
@@ -106,6 +107,7 @@ fun ChatNavHost(container: AppContainer) {
                     chatRepository = container.chatRepository,
                     userRepository = container.userRepository,
                     preferenceRepository = container.preferenceRepository,
+                    forwardManager = container.forwardManager,
                     externalScope = container.applicationScope
                 )
             )

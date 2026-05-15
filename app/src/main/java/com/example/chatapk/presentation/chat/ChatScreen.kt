@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
@@ -109,6 +110,10 @@ fun ChatScreen(
             onDelete = {
                 viewModel.deleteMessage(selectedMessage!!.id)
                 selectedMessage = null
+            },
+            onForward = {
+                viewModel.setForwarding(selectedMessage!!.messageText)
+                onBack() // Go back to ChatListScreen
             }
         )
     }
@@ -270,7 +275,8 @@ private fun MessageOptionsSheet(
     onDismiss: () -> Unit,
     onReact: (String?) -> Unit,
     onCopy: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onForward: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState()
     
@@ -304,6 +310,12 @@ private fun MessageOptionsSheet(
                 text = { Text("Copy Text") },
                 onClick = onCopy,
                 leadingIcon = { Icon(Icons.Default.ContentCopy, null) }
+            )
+
+            DropdownMenuItem(
+                text = { Text("Forward") },
+                onClick = onForward,
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Forward, null) }
             )
             
             DropdownMenuItem(

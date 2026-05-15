@@ -11,9 +11,12 @@ import com.example.chatapk.domain.repository.ChatRepository
 import com.example.chatapk.domain.repository.PreferenceRepository
 import com.example.chatapk.domain.repository.UpdateRepository
 import com.example.chatapk.domain.repository.UserRepository
+import com.example.chatapk.domain.repository.ForwardManager
 import com.example.chatapk.data.repository.GithubUpdateRepository
 import com.example.chatapk.security.EncryptionManager
 import androidx.room.Room
+import net.sqlcipher.database.SupportFactory
+import net.sqlcipher.database.SQLiteDatabase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
@@ -28,12 +31,14 @@ class AppContainer(context: Context) {
     private val firestore = FirebaseFirestore.getInstance()
     private val messaging = FirebaseMessaging.getInstance()
     val encryptionManager = EncryptionManager(appContext)
+    val forwardManager = ForwardManager()
 
     private val db = Room.databaseBuilder(
         appContext,
         ChatDatabase::class.java,
         "chat_db"
-    ).fallbackToDestructiveMigration(true)
+    ).openHelperFactory(SupportFactory(encryptionManager.getDatabasePassphrase()))
+        .fallbackToDestructiveMigration(true)
         .build()
     private val chatDao = db.chatDao()
 
@@ -65,6 +70,7 @@ class AppContainer(context: Context) {
     )
 
     init {
+        SQLiteDatabase.loadLibs(appContext)
         NotificationChannels.create(appContext)
     }
 }

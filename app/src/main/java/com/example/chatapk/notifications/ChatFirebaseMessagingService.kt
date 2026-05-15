@@ -36,25 +36,22 @@ class ChatFirebaseMessagingService : FirebaseMessagingService() {
             if (!granted) return
         }
 
-        val title = message.notification?.title ?: message.data["title"] ?: "New message"
-        var body = message.notification?.body ?: message.data["body"] ?: "Open ChatApk to read it"
+        val title = message.data["title"] ?: message.notification?.title ?: "New message"
+        var body = message.data["body"] ?: message.notification?.body ?: "Open ChatApk to read it"
 
         val senderId = message.data["senderId"]
-        if (!senderId.isNullOrBlank()) {
+        if (!senderId.isNullOrBlank() && body.isNotEmpty()) {
             val container = (application as ChatApkApplication).container
             val encryptionManager = container.encryptionManager
             body = try {
-                // We need to fetch sender's public key. Since this is a service, we can't easily wait for long.
-                // But we can use runBlocking for a quick fetch if needed, though not ideal.
-                // Better: if it fails, just show "Encrypted message"
                 val sender = kotlinx.coroutines.runBlocking { container.userRepository.getUser(senderId) }
                 if (sender?.publicKey != null) {
                     encryptionManager.decrypt(body, sender.publicKey)
                 } else {
-                    body
+                    "New message" // Hide encrypted text if we can't decrypt
                 }
             } catch (e: Exception) {
-                "Encrypted message"
+                "New message"
             }
         }
 

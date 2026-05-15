@@ -2,6 +2,9 @@ package com.example.chatapk.data.repository
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.example.chatapk.domain.repository.UpdateRepository
 import com.example.chatapk.domain.repository.UpdateResult
@@ -25,7 +28,6 @@ class GithubUpdateRepository(
 
     override suspend fun checkForUpdate(currentVersion: String): UpdateResult = withContext(Dispatchers.IO) {
         try {
-            // Use the list endpoint instead of '/latest' to support pre-releases
             val url = URL("https://api.github.com/repos/$githubUser/$repoName/releases")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -40,7 +42,6 @@ class GithubUpdateRepository(
                     return@withContext UpdateResult.NoUpdateAvailable
                 }
 
-                // GitHub sorts by date, so the first one is the newest
                 val latestRelease = releases[0].jsonObject
                 val latestVersion = latestRelease["tag_name"]?.jsonPrimitive?.content ?: ""
                 
@@ -84,9 +85,52 @@ class GithubUpdateRepository(
                 }
             }
 
-            installApk(apkFile)
-        } catch (_: Exception) {
-            // Log error
+            if (verifySignature(apkFile)) {
+                installApk(apkFile)
+            } else {
+                Log.e("Update", "Signature verification failed!")
+                apkFile.delete()
+            }
+        } catch (e: Exception) {
+            Log.e("Update", "Download error", e)
+        }
+    }
+
+    private fun verifySignature(apkFile: File): Boolean {
+        return try {
+            val packageManager = context.packageManager
+            
+            // Get current app signature
+            val currentSignature = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                    .signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES).signatures
+            }
+
+            // Get downloaded APK signature
+            val downloadedPackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageManager.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNATURES)
+            }
+            
+            val downloadedSignature = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                downloadedPackageInfo?.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                downloadedPackageInfo?.signatures
+            }
+
+            if (currentSignature.isNullOrEmpty() || downloadedSignature.isNullOrEmpty()) return false
+            
+            // Compare the first signature
+            currentSignature[0].toCharsString() == downloadedSignature[0].toCharsString()
+        } catch (e: Exception) {
+            Log.e("Update", "Verification error", e)
+            false
         }
     }
 

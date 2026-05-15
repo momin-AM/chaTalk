@@ -11,6 +11,7 @@ import com.example.chatapk.domain.repository.PreferenceRepository
 import com.example.chatapk.domain.repository.UpdateRepository
 import com.example.chatapk.domain.repository.UpdateResult
 import com.example.chatapk.domain.repository.UserRepository
+import com.example.chatapk.domain.repository.ForwardManager
 import com.example.chatapk.data.repository.GithubUpdateRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +38,10 @@ data class ChatListUiState(
     val updateDownloadUrl: String? = null,
     val isDownloadingUpdate: Boolean = false,
     val infoMessage: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val forwardingMessage: String? = null,
+    val selectedChatIds: Set<String> = emptySet(),
+    val isForwardingInProgress: Boolean = false
 )
 
 @kotlinx.coroutines.FlowPreview
@@ -46,7 +50,8 @@ class ChatListViewModel(
     private val chatRepository: ChatRepository,
     private val userRepository: UserRepository,
     private val preferenceRepository: PreferenceRepository,
-    private val updateRepository: UpdateRepository
+    private val updateRepository: UpdateRepository,
+    private val forwardManager: ForwardManager
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ChatListUiState())
     val uiState: StateFlow<ChatListUiState> = _uiState.asStateFlow()
@@ -58,6 +63,11 @@ class ChatListViewModel(
         viewModelScope.launch {
             preferenceRepository.isDarkMode.collect { isDark ->
                 _uiState.update { it.copy(isDarkMode = isDark) }
+            }
+        }
+        viewModelScope.launch {
+            forwardManager.forwardingMessage.collect { message ->
+                _uiState.update { it.copy(forwardingMessage = message) }
             }
         }
     }
@@ -174,15 +184,85 @@ class ChatListViewModel(
         }
     }
 
+    fun deleteChat(chatId: String) {
+        viewModelScope.launch {
+            chatRepository.deleteChat(chatId).onFailure { error ->
+                _uiState.update { it.copy(error = error.message) }
+            }
+        }
+    }
+
+    fun blockUser(targetUid: String) {
+        val myUid = _uiState.value.currentUserId
+        if (myUid.isBlank()) return
+        viewModelScope.launch {
+            userRepository.blockUser(myUid, targetUid)
+        }
+    }
+
+    fun unblockUser(targetUid: String) {
+        val myUid = _uiState.value.currentUserId
+        if (myUid.isBlank()) return
+        viewModelScope.launch {
+            userRepository.unblockUser(myUid, targetUid)
+        }
+    }
+
+    fun startForwarding(messageText: String) {
+        _uiState.update { it.copy(forwardingMessage = messageText, selectedChatIds = emptySet()) }
+    }
+
+    fun cancelForwarding() {
+        forwardManager.clearForwarding()
+        _uiState.update { it.copy(selectedChatIds = emptySet()) }
+    }
+
+    fun toggleChatSelection(chatId: String) {
+        _uiState.update { state ->
+            val newSelection = if (state.selectedChatIds.contains(chatId)) {
+                state.selectedChatIds - chatId
+            } else {
+                state.selectedChatIds + chatId
+            }
+            state.copy(selectedChatIds = newSelection)
+        }
+    }
+
+    fun completeForwarding() {
+        val state = _uiState.value
+        val message = state.forwardingMessage ?: return
+        val senderId = state.currentUserId
+        if (senderId.isBlank()) return
+
+        _uiState.update { it.copy(isForwardingInProgress = true) }
+        
+        viewModelScope.launch {
+            state.selectedChatIds.forEach { chatId ->
+                val chat = state.chats.find { it.id == chatId }
+                val receiverId = chat?.participantIds?.firstOrNull { it != senderId }
+                if (receiverId != null) {
+                    chatRepository.sendMessage(chatId, senderId, receiverId, message)
+                }
+            }
+            _uiState.update { it.copy(
+                selectedChatIds = emptySet(),
+                isForwardingInProgress = false,
+                infoMessage = "Message forwarded"
+            ) }
+            forwardManager.clearForwarding()
+        }
+    }
+
     class Factory(
         private val authRepository: AuthRepository,
         private val chatRepository: ChatRepository,
         private val userRepository: UserRepository,
         private val preferenceRepository: PreferenceRepository,
-        private val updateRepository: UpdateRepository
+        private val updateRepository: UpdateRepository,
+        private val forwardManager: ForwardManager
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            ChatListViewModel(authRepository, chatRepository, userRepository, preferenceRepository, updateRepository) as T
+            ChatListViewModel(authRepository, chatRepository, userRepository, preferenceRepository, updateRepository, forwardManager) as T
     }
 }

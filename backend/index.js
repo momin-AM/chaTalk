@@ -66,15 +66,12 @@ query.onSnapshot(snapshot => {
         const senderName = senderDoc.exists ? senderDoc.data().username : 'Someone';
 
         const payload = {
-          notification: {
-            title: senderName,
-            body: messageText || 'Sent a message',
-          },
           data: {
+            title: senderName,
+            body: messageText || "", // Encrypted text
             senderId: senderId,
             chatId: chatId,
-            ephemeralPublicKey: ephemeralPublicKey || "",
-            click_action: "FLUTTER_NOTIFICATION_CLICK"
+            ephemeralPublicKey: ephemeralPublicKey || ""
           }
         };
 

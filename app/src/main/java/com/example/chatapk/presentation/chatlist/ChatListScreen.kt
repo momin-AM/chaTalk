@@ -1,6 +1,7 @@
 package com.example.chatapk.presentation.chatlist
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Done
@@ -25,14 +27,17 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,7 +70,98 @@ import com.example.chatapk.domain.model.UserProfile
 import com.example.chatapk.presentation.common.UserAvatar
 import com.example.chatapk.presentation.common.formatDateOrTime
 
-@OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun ChatRow(
+    chat: Chat,
+    currentUserId: String,
+    knownUsers: List<UserProfile>,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onClick: (receiverId: String) -> Unit,
+    onLongClick: () -> Unit
+) {
+    val receiverId = chat.participantIds.firstOrNull { it != currentUserId }.orEmpty()
+    val receiverName = chat.participantNames[receiverId]
+        ?: knownUsers.firstOrNull { it.uid == receiverId }?.username
+        ?: "Unknown"
+    val unread = chat.unreadCounts[currentUserId] ?: 0L
+
+    ListItem(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { if (receiverId.isNotBlank()) onClick(receiverId) },
+                onLongClick = onLongClick
+            ),
+        leadingContent = {
+            UserAvatar(
+                username = receiverName,
+                modifier = Modifier.clip(CircleShape)
+            )
+        },
+        trailingContent = {
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { if (receiverId.isNotBlank()) onClick(receiverId) }
+                )
+            }
+        },
+        headlineContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = receiverName,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = formatDateOrTime(chat.lastMessageAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        supportingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (currentUserId.isNotBlank() && chat.lastMessageSenderId == currentUserId && chat.lastMessage.isNotBlank()) {
+                    val (icon, color) = when (chat.lastMessageStatus) {
+                        MessageStatus.SENT ->
+                            Icons.Default.Done to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        MessageStatus.DELIVERED ->
+                            Icons.Default.DoneAll to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        MessageStatus.SEEN ->
+                            Icons.Default.DoneAll to Color(0xFF34B7F1) // WhatsApp Blue
+                    }
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = color
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = chat.lastMessage.ifBlank { "Say hello" },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (unread > 0) {
+                    Badge {
+                        Text(unread.coerceAtMost(99).toString())
+                    }
+                }
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ChatListScreen(
     viewModel: ChatListViewModel,
@@ -164,15 +260,26 @@ fun ChatListScreen(
                 )
             } else {
                 TopAppBar(
+                    navigationIcon = {
+                        if (state.forwardingMessage != null) {
+                            IconButton(onClick = { viewModel.cancelForwarding() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cancel")
+                            }
+                        }
+                    },
                     title = {
-                        Column {
-                            Text("chaTalk")
-                            state.currentUser?.let {
-                                Text(
-                                    text = it.username,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (state.isDarkMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                )
+                        if (state.forwardingMessage != null) {
+                            Text("Forward to...")
+                        } else {
+                            Column {
+                                Text("chaTalk")
+                                state.currentUser?.let {
+                                    Text(
+                                        text = it.username,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (state.isDarkMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                    )
+                                }
                             }
                         }
                     },
@@ -221,158 +328,139 @@ fun ChatListScreen(
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            state.error?.let { error ->
-                item {
-                    Text(
-                        modifier = Modifier.padding(16.dp),
-                        text = "Error: $error",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-
-            state.infoMessage?.let { message ->
-                item {
-                    Text(
-                        modifier = Modifier.padding(16.dp),
-                        text = message,
-                        color = Color(0xFF25D366), // WhatsApp Green
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-
-            if (state.isSearchMode) {
-                if (state.searchResults.isEmpty() && state.searchQuery.isNotBlank()) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                state.error?.let { error ->
                     item {
                         Text(
-                            modifier = Modifier.padding(24.dp),
-                            text = "No users found.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            modifier = Modifier.padding(16.dp),
+                            text = "Error: $error",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
+                }
+
+                state.infoMessage?.let { message ->
+                    item {
+                        Text(
+                            modifier = Modifier.padding(16.dp),
+                            text = message,
+                            color = Color(0xFF25D366), // WhatsApp Green
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                if (state.isSearchMode) {
+                    if (state.searchResults.isEmpty() && state.searchQuery.isNotBlank()) {
+                        item {
+                            Text(
+                                modifier = Modifier.padding(24.dp),
+                                text = "No users found.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        items(state.searchResults, key = { it.uid }) { user ->
+                            ListItem(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.openChat(user, onOpenChat) },
+                                leadingContent = {
+                                    UserAvatar(
+                                        username = user.username,
+                                        modifier = Modifier.clip(CircleShape)
+                                    )
+                                },
+                                headlineContent = { Text(user.username) }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
                 } else {
-                    items(state.searchResults, key = { it.uid }) { user ->
-                        ListItem(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.openChat(user, onOpenChat) },
-                            leadingContent = {
-                                UserAvatar(
-                                    username = user.username,
-                                    modifier = Modifier.clip(CircleShape)
+                    if (state.chats.isEmpty()) {
+                        item {
+                            Text(
+                                modifier = Modifier.padding(24.dp),
+                                text = "No conversations yet. Search for people to start chatting!",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        items(state.chats, key = { it.id }) { chat ->
+                            val receiverId = chat.participantIds.firstOrNull { it != state.currentUserId }.orEmpty()
+                            var showRowMenu by remember { mutableStateOf(false) }
+                            val isBlocked = state.currentUser?.blockedUids?.contains(receiverId) == true
+                            val isSelected = state.selectedChatIds.contains(chat.id)
+
+                            Box {
+                                ChatRow(
+                                    chat = chat,
+                                    currentUserId = state.currentUserId,
+                                    knownUsers = emptyList<UserProfile>(), 
+                                    isSelectionMode = state.forwardingMessage != null,
+                                    isSelected = isSelected,
+                                    onClick = { rid: String ->
+                                        if (state.forwardingMessage != null) {
+                                            viewModel.toggleChatSelection(chat.id)
+                                        } else {
+                                            onOpenChat(chat.id, rid)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (state.forwardingMessage == null) {
+                                            showRowMenu = true
+                                        }
+                                    }
                                 )
-                            },
-                            headlineContent = { Text(user.username) }
-                        )
-                        HorizontalDivider()
+                                if (state.forwardingMessage == null) {
+                                    DropdownMenu(
+                                        expanded = showRowMenu,
+                                        onDismissRequest = { showRowMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (isBlocked) "Unblock" else "Block") },
+                                            onClick = {
+                                                if (isBlocked) viewModel.unblockUser(receiverId)
+                                                else viewModel.blockUser(receiverId)
+                                                showRowMenu = false
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Delete Inbox") },
+                                            onClick = {
+                                                viewModel.deleteChat(chat.id)
+                                                showRowMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
                     }
                 }
-            } else {
-                if (state.chats.isEmpty()) {
-                    item {
-                        Text(
-                            modifier = Modifier.padding(24.dp),
-                            text = "No conversations yet. Search for people to start chatting!",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    items(state.chats, key = { it.id }) { chat ->
-                        ChatRow(
-                            chat = chat,
-                            currentUserId = state.currentUserId,
-                            knownUsers = emptyList(), // No longer need this as search results are separate
-                            onClick = { receiverId ->
-                                onOpenChat(chat.id, receiverId)
-                            }
-                        )
-                        HorizontalDivider()
+            }
+
+            if (state.forwardingMessage != null && state.selectedChatIds.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = { viewModel.completeForwarding() },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                    containerColor = Color(0xFF25D366), // WhatsApp Green
+                    contentColor = Color.White
+                ) {
+                    if (state.isForwardingInProgress) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                    } else {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                     }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun ChatRow(
-    chat: Chat,
-    currentUserId: String,
-    knownUsers: List<UserProfile>,
-    onClick: (receiverId: String) -> Unit
-) {
-    val receiverId = chat.participantIds.firstOrNull { it != currentUserId }.orEmpty()
-    val receiverName = chat.participantNames[receiverId]
-        ?: knownUsers.firstOrNull { it.uid == receiverId }?.username
-        ?: "Unknown"
-    val unread = chat.unreadCounts[currentUserId] ?: 0L
-
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { if (receiverId.isNotBlank()) onClick(receiverId) },
-        leadingContent = {
-            UserAvatar(
-                username = receiverName,
-                modifier = Modifier.clip(CircleShape)
-            )
-        },
-        headlineContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = receiverName,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = formatDateOrTime(chat.lastMessageAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        supportingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (currentUserId.isNotBlank() && chat.lastMessageSenderId == currentUserId && chat.lastMessage.isNotBlank()) {
-                    val (icon, color) = when (chat.lastMessageStatus) {
-                        MessageStatus.SENT ->
-                            Icons.Default.Done to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        MessageStatus.DELIVERED ->
-                            Icons.Default.DoneAll to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        MessageStatus.SEEN ->
-                            Icons.Default.DoneAll to Color(0xFF34B7F1) // WhatsApp Blue
-                    }
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = color
-                    )
-                    Spacer(Modifier.width(4.dp))
-                }
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = chat.lastMessage.ifBlank { "Say hello" },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (unread > 0) {
-                    Badge {
-                        Text(unread.coerceAtMost(99).toString())
-                    }
-                }
-            }
-        }
-    )
 }

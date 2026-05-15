@@ -68,10 +68,10 @@ class FirebaseChatRepository(
                                         if (otherUser?.publicKey != null && domain.lastMessage.isNotEmpty()) {
                                             encryptionManager.decrypt(domain.lastMessage, otherUser.publicKey)
                                         } else {
-                                            domain.lastMessage
+                                            if (domain.lastMessage.isEmpty()) "" else "[Unable to decrypt]"
                                         }
                                     } catch (e: Exception) {
-                                        domain.lastMessage
+                                        "[Encrypted message]"
                                     }
                                     domain.copy(lastMessage = decryptedLastMessage).toLocal()
                                 }
@@ -113,10 +113,10 @@ class FirebaseChatRepository(
                                         if (otherPublicKey != null && domain.messageText.isNotEmpty()) {
                                             encryptionManager.decrypt(domain.messageText, otherPublicKey)
                                         } else {
-                                            domain.messageText
+                                            "[Unable to decrypt]"
                                         }
                                     } catch (e: Exception) {
-                                        domain.messageText
+                                        "[Encrypted message]"
                                     }
                                     domain.copy(messageText = decryptedText).toLocal(chatId)
                                 }
@@ -176,11 +176,11 @@ class FirebaseChatRepository(
             Log.d("E2EE", "Encrypting message for receiver: $receiverId")
             runCatching { encryptionManager.encrypt(trimmed, receiverPublicKey) }.getOrNull()
         } else {
-            Log.d("E2EE", "Receiver $receiverId has no public key, sending plain text")
-            null
+            Log.e("E2EE", "Receiver $receiverId has no public key, aborting send.")
+            throw IllegalStateException("End-to-end encryption is required but receiver has no public key.")
         }
 
-        val messageTextToStore = encryptedText ?: trimmed
+        val messageTextToStore = encryptedText ?: throw IllegalStateException("Encryption failed")
         val now = System.currentTimeMillis()
         val chatRef = chats.document(chatId)
         val messageRef = chatRef.collection("messages").document()

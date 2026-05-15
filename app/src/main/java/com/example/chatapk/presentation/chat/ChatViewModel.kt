@@ -11,6 +11,7 @@ import com.example.chatapk.domain.repository.AuthRepository
 import com.example.chatapk.domain.repository.ChatRepository
 import com.example.chatapk.domain.repository.PreferenceRepository
 import com.example.chatapk.domain.repository.UserRepository
+import com.example.chatapk.domain.repository.ForwardManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,7 @@ data class ChatUiState(
     val isDarkMode: Boolean = false,
     val isBlockedByMe: Boolean = false,
     val hasBlockedMe: Boolean = false,
+    val isForwarding: Boolean = false,
     val error: String? = null
 )
 
@@ -41,6 +43,7 @@ class ChatViewModel(
     private val chatRepository: ChatRepository,
     private val userRepository: UserRepository,
     private val preferenceRepository: PreferenceRepository,
+    private val forwardManager: ForwardManager,
     private val externalScope: CoroutineScope
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -197,6 +200,10 @@ class ChatViewModel(
         }
     }
 
+    fun setForwarding(messageText: String) {
+        forwardManager.startForwarding(messageText)
+    }
+
     override fun onCleared() {
         val uid = uiState.value.currentUserId
         if (uid.isNotBlank()) {
@@ -214,10 +221,11 @@ class ChatViewModel(
         private val chatRepository: ChatRepository,
         private val userRepository: UserRepository,
         private val preferenceRepository: PreferenceRepository,
+        private val forwardManager: ForwardManager,
         private val externalScope: CoroutineScope
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            ChatViewModel(chatId, receiverId, authRepository, chatRepository, userRepository, preferenceRepository, externalScope) as T
+            ChatViewModel(chatId, receiverId, authRepository, chatRepository, userRepository, preferenceRepository, forwardManager, externalScope) as T
     }
 }
